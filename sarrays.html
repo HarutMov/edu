@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Systolic Arrays — the grid with a pulse</title>
+<style>
+  :root{
+    --paper:#e6e7e2; --rule:#c9ccc3;
+    --ink:#12181a; --ink-soft:#5c6769; --ink-faint:#8b9492;
+    --board:#0e181b; --board-2:#16242a; --board-line:#243a41; --board-ink:#8fa5a9;
+    --a:#ff9d4d; --b:#45c8d8; --done:#7fd6a2; --pulse:#e2574c;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); font-size:17px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:0 24px}
+
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--ink-faint); margin:0 0 14px;
+  }
+  h1{
+    font-family:var(--mono); font-weight:700; letter-spacing:-.04em; line-height:.85;
+    font-size:clamp(44px,12vw,116px); margin:0; text-transform:uppercase;
+  }
+  h2{
+    font-family:var(--mono); font-weight:700; letter-spacing:-.02em; line-height:1.12;
+    font-size:clamp(21px,3.4vw,29px); margin:0 0 18px;
+  }
+  h3{font-weight:650; font-size:18px; margin:28px 0 6px; letter-spacing:-.01em}
+  p{margin:0 0 18px; max-width:64ch}
+  .lede{font-size:20px; line-height:1.5; max-width:56ch}
+  .dim{color:var(--ink-soft)}
+  b,strong{font-weight:640}
+  code,.num{font-family:var(--mono); font-size:.92em}
+  .ca{color:#bc5f0a; font-weight:640}
+  .cb{color:#0f6f80; font-weight:640}
+
+  .sec{padding:52px 0; border-top:1px solid var(--rule)}
+
+  header{padding:74px 0 40px}
+  #hero{display:block; width:100%; height:auto; margin:32px 0 26px}
+  .hero-meta{
+    display:flex; gap:26px; flex-wrap:wrap; font-family:var(--mono); font-size:11px;
+    letter-spacing:.13em; text-transform:uppercase; color:var(--ink-faint);
+    border-top:1px solid var(--rule); padding-top:14px;
+  }
+
+  .board{
+    background:var(--board); border-radius:14px; padding:22px; margin:26px 0 20px;
+    box-shadow:0 1px 0 rgba(255,255,255,.55), 0 18px 44px -24px rgba(14,24,27,.7);
+  }
+  .board-head{
+    display:flex; justify-content:space-between; align-items:baseline; gap:16px; flex-wrap:wrap;
+    font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--board-ink); margin-bottom:14px;
+  }
+  .scroller{overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch}
+  #array,#rail{display:block; width:100%; min-width:540px; height:auto}
+  #rail{margin-top:4px}
+  #cell{display:block; width:100%; max-width:460px; height:auto; margin:0 auto}
+
+  .controls{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:16px}
+  button{
+    font-family:var(--mono); font-size:12px; letter-spacing:.1em; text-transform:uppercase;
+    background:var(--board-2); color:#cfe0e2; border:1px solid var(--board-line);
+    padding:9px 14px; border-radius:7px; cursor:pointer; transition:background .12s,color .12s;
+  }
+  button:hover{background:#20343b; color:#fff}
+  #play{background:var(--pulse); border-color:var(--pulse); color:#fff; min-width:106px}
+  #play:hover{background:#f0665b}
+  button:focus-visible, input:focus-visible{outline:2px solid var(--b); outline-offset:2px}
+  .speed{display:flex; align-items:center; gap:9px; margin-left:auto;
+    font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--board-ink)}
+  input[type=range]{width:104px; accent-color:var(--pulse); cursor:pointer}
+
+  .editors{display:flex; gap:26px; flex-wrap:wrap; align-items:flex-start; margin-top:20px;
+    padding-top:18px; border-top:1px solid var(--board-line)}
+  .mx-label{font-family:var(--mono); font-size:11px; letter-spacing:.13em; text-transform:uppercase;
+    margin-bottom:8px; color:var(--board-ink)}
+  .mx{display:grid; grid-template-columns:repeat(3,1fr); gap:5px}
+  .mx input{
+    width:38px; height:34px; text-align:center; font-family:var(--mono); font-size:14px; font-weight:600;
+    background:var(--board-2); border:1px solid var(--board-line); border-radius:5px; padding:0;
+    -moz-appearance:textfield;
+  }
+  .mx.a input{color:var(--a)} .mx.b input{color:var(--b)}
+  .mx input::-webkit-outer-spin-button,.mx input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
+  .ed-note{font-family:var(--mono); font-size:11px; color:#5d7278; line-height:1.7; max-width:20ch;
+    margin:0 0 0 auto; text-align:right}
+
+  .ledger{border-top:1px solid var(--ink); margin:26px 0 20px}
+  .row{display:grid; grid-template-columns:1fr auto auto; gap:16px; align-items:baseline;
+    padding:13px 0; border-bottom:1px solid var(--rule)}
+  .row .v{font-family:var(--mono); font-size:15px; text-align:right; min-width:9ch; color:var(--ink-soft)}
+  .row .v.win{color:var(--ink); font-weight:700}
+  .row.head{padding:8px 0}
+  .row.head span{font-family:var(--mono); font-size:10px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--ink-faint)}
+
+  .callout{border-left:2px solid var(--pulse); padding:2px 0 2px 18px; margin:26px 0; max-width:60ch}
+  .callout p:last-child{margin-bottom:0}
+
+  ul{max-width:62ch; padding-left:20px; margin:0 0 18px}
+  li{margin-bottom:9px}
+
+  footer{padding:44px 0 76px; border-top:1px solid var(--rule); color:var(--ink-soft); font-size:14px}
+
+  @media (max-width:640px){
+    body{font-size:16px}
+    .board{padding:14px; border-radius:11px}
+    .ed-note{display:none}
+    .speed{margin-left:0}
+    .row{grid-template-columns:1fr auto auto; gap:10px}
+    .row .v{min-width:6ch; font-size:14px}
+  }
+  @media (prefers-reduced-motion:reduce){ *{transition:none !important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Kung &amp; Leiserson, 1978 · the engine inside a TPU</p>
+    <h1>Systolic<br>Arrays</h1>
+    <canvas id="hero" width="1200" height="112" aria-hidden="true"></canvas>
+    <p class="lede">A grid of very stupid cells beats one very clever cell — because each number is fetched from memory <em>once</em>, then handed neighbour to neighbour until it's done being useful.</p>
+    <div class="hero-meta">
+      <span>↑ that's the array's heartbeat</span>
+      <span>we'll get there</span>
+    </div>
+  </header>
+
+  <section class="sec">
+    <h2>The problem isn't the math.<br>It's the fetching.</h2>
+    <p>Almost everything a neural network does comes down to multiplying matrices. And multiplying matrices comes down to one tiny operation, repeated an absurd number of times:</p>
+    <p><strong>multiply two numbers, add the answer to a running total.</strong> That's the whole operation. Hardware people call it a MAC — multiply-accumulate.</p>
+    <p>A chip can do that ridiculously fast. The trouble is <em>feeding</em> it. Done naively, every multiply needs two fresh numbers dragged out of memory — and a trip to memory burns <strong>hundreds of times more energy</strong> than the multiply you're doing with it. You can build the world's fastest multiplier and it will still spend its life waiting for groceries to show up.</p>
+    <div class="callout">
+      <p>So the real question was never "how do we multiply faster?" It was <strong>"how do we get more mileage out of each number we bother to fetch?"</strong></p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>The idea: pass it to your neighbour</h2>
+    <p>Picture a warehouse where every worker walks back to the loading dock for every single part. Now picture a bucket brigade instead: one trip to the dock, then the part gets handed down the line — and <em>everyone</em> it passes gets to use it.</p>
+    <p>That's a systolic array. Fetch a number once, then let it walk across a grid of tiny cells, getting used at every stop it makes.</p>
+    <p>The name gives it away. <strong>Systole</strong> is the contraction of a heart. Data here doesn't get fetched, it gets <em>pumped</em> — in a steady rhythm, one beat at a time, with the whole grid twitching in time with it.</p>
+  </section>
+
+  <section class="sec">
+    <h2>One cell, four rules</h2>
+    <p>Each cell is deliberately, almost insultingly dumb. It owns a multiplier, an adder, two registers, and no idea what's going on. Every beat it does exactly four things:</p>
+    <ul>
+      <li>Take a number <span class="ca">a</span> from the neighbour on its <span class="ca">left</span>.</li>
+      <li>Take a number <span class="cb">b</span> from the neighbour <span class="cb">above</span>.</li>
+      <li>Add <span class="ca">a</span>×<span class="cb">b</span> to its running total.</li>
+      <li>Pass <span class="ca">a</span> along to the <span class="ca">right</span>, and <span class="cb">b</span> along <span class="cb">down</span>.</li>
+    </ul>
+    <p>No memory access. No instructions to decode. No branches. No idea what its neighbours are doing. That poverty is the point — it's why you can etch tens of thousands of them onto one chip and clock them all in lockstep.</p>
+    <div class="board">
+      <div class="board-head"><span>one cell · on a loop</span><span>a × b → total</span></div>
+      <canvas id="cell" width="520" height="300"></canvas>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>Wire them into a grid</h2>
+    <p>Now tile those cells into a 3×3 grid to compute <span class="num">C = A × B</span>. The wiring is the whole trick and it's almost too simple: <strong>each cell owns exactly one answer.</strong> The cell at row <span class="num">i</span>, column <span class="num">j</span> spends its entire life building <span class="num">C[i][j]</span>, and never moves it anywhere.</p>
+    <p>Which tells you how to feed it. Send <span class="ca">row i of A</span> in from the <span class="ca">left</span> of row i, and <span class="cb">column j of B</span> down from the <span class="cb">top</span> of column j. Now every number that walks through a cell is a number that cell actually needs.</p>
+
+    <h3>Why the input looks like a staircase</h3>
+    <p>You'll see the numbers queued up outside the grid in a skewed staircase. That's not styling — it's the timing, and here's the entire reason for it:</p>
+    <div class="callout">
+      <p><span class="cb">B[0][0]</span> gets used by the top-left cell on beat 0. Then it has to <em>walk</em> to the cell below, which costs a beat. So it lands there on beat 1 — which means <span class="ca">row 1 of A</span> has to set off one beat <strong>late</strong> to meet it.</p>
+      <p>Every row starts one beat after the row above it. Every column starts one beat after the column to its left. Stack those delays up and you've drawn a staircase.</p>
+    </div>
+    <p class="dim">It's a rendezvous problem. Two numbers have to reach the same cell on the same beat, and they've travelled different distances to get there — so they leave at different times. Nothing in the array ever checks whether its partner turned up. The schedule just guarantees it did.</p>
+  </section>
+
+  <section class="sec">
+    <p class="eyebrow">the array · press play</p>
+    <h2>Watch the answer build itself</h2>
+    <p>The staircase marches in from the left and the top. Wherever an <span class="ca">amber</span> number meets a <span class="cb">cyan</span> one, that cell multiplies the pair and adds it to its total. Then both numbers carry on walking. Nothing is ever fetched twice.</p>
+
+    <div class="board">
+      <div class="board-head">
+        <span>C = A × B · output-stationary · 3×3</span>
+        <span id="phase">ready</span>
+      </div>
+      <div class="scroller">
+        <canvas id="array" width="720" height="720" role="img"
+          aria-label="Animated 3 by 3 systolic array computing a matrix product"></canvas>
+        <canvas id="rail" width="720" height="128" aria-hidden="true"></canvas>
+      </div>
+
+      <div class="controls">
+        <button id="play">Play</button>
+        <button id="back">◀ Beat</button>
+        <button id="fwd">Beat ▶</button>
+        <button id="reset">Reset</button>
+        <label class="speed">Speed
+          <input type="range" id="speed" min="0.25" max="3" step="0.05" value="1" aria-label="Playback speed">
+        </label>
+      </div>
+
+      <div class="editors">
+        <div>
+          <div class="mx-label" style="color:var(--a)">Matrix A →</div>
+          <div class="mx a" id="mxA"></div>
+        </div>
+        <div>
+          <div class="mx-label" style="color:var(--b)">Matrix B ↓</div>
+          <div class="mx b" id="mxB"></div>
+        </div>
+        <div>
+          <div class="mx-label">&nbsp;</div>
+          <button id="rand">Randomise</button>
+        </div>
+        <p class="ed-note">Change any number — the array recomputes live. Hover a cell for its sum.</p>
+      </div>
+    </div>
+    <p class="dim">Every total that turns mint is finished and correct — check any of them by hand. The array never had a plan. It just kept multiplying whatever showed up.</p>
+  </section>
+
+  <section class="sec">
+    <h2>So what did that buy us?</h2>
+    <p>The grid finished 27 multiply-accumulates in 7 beats, because up to seven cells were working at once. Nice — but the speedup isn't the point. <strong>Look at the memory row.</strong></p>
+
+    <div class="ledger">
+      <div class="row head"><span>3×3 matrix multiply</span><span class="v">one MAC unit</span><span class="v">systolic 3×3</span></div>
+      <div class="row"><span>Multiply-accumulates</span><span class="v">27</span><span class="v">27</span></div>
+      <div class="row"><span>Beats to finish</span><span class="v">27</span><span class="v win">7</span></div>
+      <div class="row"><span>Reads from memory</span><span class="v">54</span><span class="v win">18</span></div>
+      <div class="row"><span>Uses per number fetched</span><span class="v">1</span><span class="v win">3</span></div>
+    </div>
+
+    <p>Eighteen reads instead of fifty-four, because each number gets fetched once and then used at every cell it walks past. And that ratio isn't a constant — <strong>it's the width of the array.</strong> Make the grid <span class="num">n</span> cells wide and every number you fetch gets used <span class="num">n</span> times.</p>
+    <p>Google's first TPU ran a <strong>256×256</strong> grid of these cells: 65,536 multipliers, the lot of them fed by a bucket brigade. Every number pulled in from memory gets used 256 times before it's retired. Since fetching costs hundreds of times more energy than multiplying, <em>that ratio is the entire win</em>. The speed is a side effect of not being hungry.</p>
+  </section>
+
+  <section class="sec">
+    <h2>The catch</h2>
+    <p>Look at the pulse under the array again — that shape is the honest story. The grid works at <span class="num">1, 3, 6, 7, 6, 3, 1</span> cells per beat. It is never once fully busy.</p>
+    <ul>
+      <li><strong>Fill and drain.</strong> At the start the wavefront hasn't spread yet; at the end it's walking out. Across the whole run only 43% of the array's capacity got used. Real chips hide this by streaming tile after tile back-to-back, so one matrix's drain overlaps the next one's fill and the pulse flattens into a plateau.</li>
+      <li><strong>It does exactly one thing.</strong> The rigid lockstep schedule is what makes the cells cheap enough to build by the thousand — and it also means the hardware is dead weight for anything not shaped like a matrix multiply.</li>
+      <li><strong>Your matrix doesn't fit.</strong> Real ones dwarf the grid, so they get chopped into tiles, streamed through, and stitched back together.</li>
+    </ul>
+    <p class="dim">The version animated here is <em>output-stationary</em>: the answers sit still, both inputs move. It's the clearest one to watch. Google's TPU is <em>weight-stationary</em> — weights are preloaded into the cells and only the activations flow through — which suits running the same weights against a stream of inputs. Same bucket brigade, different thing standing still.</p>
+  </section>
+
+  <footer>
+    <p style="max-width:62ch">H. T. Kung and Charles Leiserson described these in 1978, long before there was anything worth running on one. The idea then sat around for thirty years waiting for a workload greedy enough to need it. Deep learning turned up.</p>
+    <p class="eyebrow" style="margin:0">every number on this page is computed live · space = play · ← → = step</p>
+  </footer>
+
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ═══════════════════ model ═══════════════════
+   Output-stationary systolic matmul, C = A·B.
+     A[i][k] enters the LEFT of row i on beat i+k  → at beat t its column is t−i−k
+     B[k][j] enters the TOP  of col j on beat j+k  → at beat t its row    is t−j−k
+   Both land on cell (i,j) exactly when k = t−i−j, so operands always match up.
+   Cell (i,j) multiplies on beat t iff 0 ≤ t−i−j ≤ n−1; it's final after beat i+j+n−1.
+   Whole product takes 3n−2 beats. (Checked against a plain triple loop.)
+*/
+const N = 3;
+const T0 = -1, T1 = 3 * N - 2;        // -1 = loaded & still, 7 = fully drained
+let A = [[1,2,3],[4,5,6],[7,8,9]];
+let B = [[1,0,2],[0,1,1],[2,1,0]];
+
+const kAt    = (i,j,c) => c - i - j;
+const busy   = (i,j,c) => { const k = kAt(i,j,c); return k >= 0 && k < N; };
+const isDone = (i,j,c) => c >= i + j + N - 1;
+const acc = (i,j,c) => {
+  const kmax = Math.min(c - i - j, N - 1);
+  if (kmax < 0) return null;
+  let s = 0; for (let k = 0; k <= kmax; k++) s += A[i][k] * B[k][j];
+  return s;
+};
+const macsOn = c => { let n = 0; for (let i=0;i<N;i++) for (let j=0;j<N;j++) if (busy(i,j,c)) n++; return n; };
+const PULSE = []; for (let c = T0; c <= T1; c++) PULSE.push(macsOn(c));   // 0,1,3,6,7,6,3,1,0
+const TOTAL = PULSE.reduce((a,b) => a + b, 0);                            // = n³ = 27
+
+/* ═══════════════════ clock ═══════════════════ */
+const HOLD = .42;                                  // share of each beat spent parked in a cell
+const ease = p => p < .5 ? 4*p*p*p : 1 - Math.pow(-2*p + 2, 3)/2;
+const moveProg = f => f < HOLD ? 0 : ease((f - HOLD) / (1 - HOLD));
+const clamp = (v,a,b) => v < a ? a : v > b ? b : v;
+
+let t = T0, playing = false, bps = 1;
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ═══════════════════ canvas plumbing ═══════════════════ */
+function fit(cv) {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  if (!cv._base) cv._base = { w: cv.width, h: cv.height };
+  if (cv._dpr === dpr) return cv._ctx;
+  cv._dpr = dpr;
+  cv.width = cv._base.w * dpr; cv.height = cv._base.h * dpr;
+  cv.style.aspectRatio = cv._base.w + " / " + cv._base.h;
+  const g = cv.getContext("2d");
+  g.scale(dpr, dpr);
+  cv._ctx = g; cv._w = cv._base.w; cv._h = cv._base.h;
+  return g;
+}
+const CSSV = getComputedStyle(document.documentElement);
+const V = n => CSSV.getPropertyValue(n).trim();
+const COL = { a:V("--a"), b:V("--b"), done:V("--done"), pulse:V("--pulse"),
+              cell:V("--board-2"), line:V("--board-line") };
+
+function rr(g, x, y, w, h, r) {
+  g.beginPath();
+  if (g.roundRect) g.roundRect(x, y, w, h, r);
+  else { g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r);
+         g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); }
+}
+const MONO = s => s + 'px ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace';
+
+/* letter-spaced label — canvas has no letterSpacing everywhere, so space it by hand */
+function label(g, s, x, y, size, colour, align) {
+  g.font = "600 " + MONO(size);
+  g.fillStyle = colour; g.textAlign = "left"; g.textBaseline = "middle";
+  const tr = size * .13;
+  let w = -tr; for (const ch of s) w += g.measureText(ch).width + tr;
+  if (align === "center") x -= w/2; else if (align === "right") x -= w;
+  for (const ch of s) { g.fillText(ch, x, y); x += g.measureText(ch).width + tr; }
+}
+
+/* a data chip: one number, in transit */
+function chip(g, x, y, val, kind, alpha, glow) {
+  if (alpha <= .015) return;
+  const w = 28, h = 18, c = kind === "a" ? COL.a : COL.b;
+  g.save();
+  g.globalAlpha = clamp(alpha, 0, 1);
+  if (glow > 0) { g.shadowColor = c; g.shadowBlur = 13 * glow; }
+  rr(g, x - w/2, y - h/2, w, h, 5);
+  g.fillStyle = c; g.fill();
+  g.shadowBlur = 0;
+  g.fillStyle = "#0b1417"; g.font = "700 " + MONO(12);
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(String(val), x, y + .5);
+  g.restore();
+}
+
+/* ═══════════════════ the array ═══════════════════ */
+const CELL = 72, PITCH = 84, DEPTH = 2*N - 1, MG = 30;
+const OX = MG + DEPTH*PITCH, OY = OX;      // 450,450 — top-left of cell (0,0)
+const LANE = 26;                           // A's lane sits this far below each cell's top edge
+const cxOf = col => OX + col*PITCH + CELL/2;
+const cyOf = row => OY + row*PITCH + LANE;
+const inGrid = c => c >= 0 && c <= N - 1;
+
+let hover = null;
+const cv = document.getElementById("array");
+
+function drawArray() {
+  const g = fit(cv);
+  const c = Math.floor(t + 1e-9), f = t - c;
+  const mp = moveProg(f), pos = c + mp;
+  const flash = Math.max(0, 1 - f/HOLD);   // 1 the instant a pair lands, 0 before it leaves
+
+  g.clearRect(0, 0, cv._w, cv._h);
+
+  /* tracks the data runs along */
+  g.strokeStyle = COL.line; g.lineWidth = 1; g.setLineDash([2,5]);
+  for (let i = 0; i < N; i++) {
+    g.beginPath(); g.moveTo(MG, cyOf(i)); g.lineTo(cxOf(N-1) + PITCH*.55, cyOf(i)); g.stroke();
+    g.beginPath(); g.moveTo(cxOf(i), MG); g.lineTo(cxOf(i), cyOf(N-1) + PITCH*.55); g.stroke();
+  }
+  g.setLineDash([]);
+
+  /* cells */
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const x = OX + j*PITCH, y = OY + i*PITCH;
+    const on = busy(i,j,c), fin = isDone(i,j,c), lit = on ? flash : 0;
+    const hot = hover && hover.i === i && hover.j === j;
+
+    rr(g, x, y, CELL, CELL, 9);
+    g.fillStyle = COL.cell; g.fill();
+    if (lit > 0) { g.save(); g.globalAlpha = lit * .07; g.fillStyle = "#fff"; g.fill(); g.restore(); }
+    g.strokeStyle = hot ? "#557f8a" : (on ? "rgba(255,255,255," + (.10 + .5*lit) + ")" : COL.line);
+    g.lineWidth = hot ? 1.6 : 1; g.stroke();
+
+    if (lit > .02) {                                   // the multiply happens right here
+      g.save(); g.globalAlpha = lit;
+      g.shadowColor = "#fff"; g.shadowBlur = 10;
+      label(g, "×", x + CELL/2, y + LANE, 11, "rgba(255,255,255,.92)", "center");
+      g.restore();
+    }
+
+    /* running total, in its own little display strip */
+    const val = acc(i, j, c);
+    rr(g, x + 6, y + 46, CELL - 12, 20, 4);
+    g.fillStyle = fin ? "rgba(127,214,162,.13)" : "rgba(0,0,0,.34)"; g.fill();
+    if (fin) { g.strokeStyle = "rgba(127,214,162,.42)"; g.lineWidth = 1; g.stroke(); }
+    g.save();
+    if (lit > .1) { g.shadowColor = fin ? COL.done : "#fff"; g.shadowBlur = 9*lit; }
+    g.font = "700 " + MONO(val === null ? 11 : 14);
+    g.fillStyle = val === null ? "#3b545c" : (fin ? COL.done : "#e7f1f0");
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(val === null ? "·" : String(val), x + CELL/2, y + 56.5);
+    g.restore();
+
+    label(g, i + "," + j, x + CELL - 5, y + 9, 8, "#3f5f69", "right");
+  }
+
+  /* chips. nudge() parts a pair nose-to-nose while they're parked together */
+  const nudge = (here, next) => -16 * ((1 - mp)*(here?1:0) + mp*(next?1:0));
+  const fade = p => p > N - 1 ? Math.max(0, 1 - (p - (N-1))) : 1;
+
+  for (let i = 0; i < N; i++) for (let k = 0; k < N; k++) {
+    const col = pos - i - k, base = c - i - k;
+    if (col > N) continue;
+    chip(g, cxOf(col) + nudge(inGrid(base), inGrid(base+1)), cyOf(i),
+         A[i][k], "a", fade(col), inGrid(base) ? flash : 0);
+  }
+  for (let j = 0; j < N; j++) for (let k = 0; k < N; k++) {
+    const row = pos - j - k, base = c - j - k;
+    if (row > N) continue;
+    chip(g, cxOf(j) - nudge(inGrid(base), inGrid(base+1)), cyOf(row),
+         B[k][j], "b", fade(row), inGrid(base) ? flash : 0);
+  }
+
+  label(g, "A · rows walk right →", MG + 2, OY - 16, 10, "rgba(255,157,77,.75)");
+  g.save(); g.translate(OX - 17, MG + 6); g.rotate(Math.PI/2);   // reads downward, like the flow
+  label(g, "B · columns walk down", 0, 0, 10, "rgba(69,200,216,.75)");
+  g.restore();
+
+  drawCorner(g, c);
+}
+
+/* the readout in the array's empty corner */
+function drawCorner(g, c) {
+  const x = MG + 2, y = MG + 6;
+
+  label(g, "BEAT", x, y + 8, 11, "#5d7d85");
+  g.font = "700 " + MONO(76); g.fillStyle = "#e9f2f1";
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.fillText(c < 0 ? "–" : String(Math.min(c, T1)), x - 2, y + 82);
+  g.font = "600 " + MONO(15); g.fillStyle = "#4e6d75";
+  g.fillText("/ " + (T1 - 1), x + (c < 0 ? 28 : 50), y + 82);
+
+  const n = macsOn(c);
+  let done = 0; for (let b = T0; b <= c; b++) done += macsOn(b);
+  label(g, c < 0 ? "LOADED · NOTHING MOVING YET"
+                 : n === 0 ? "DRAINED · EVERY TOTAL FINAL"
+                 : n + " CELL" + (n === 1 ? "" : "S") + " MULTIPLYING",
+        x, y + 108, 11, COL.pulse);
+  label(g, done + " OF " + TOTAL + " MULTIPLIES DONE", x, y + 128, 11, "#5d7d85");
+
+  if (hover) {                                  /* one cell's sum, terms lighting up as they land */
+    const { i, j } = hover, k = kAt(i, j, c);
+    label(g, "CELL " + i + "," + j + " · HOLDS C[" + i + "][" + j + "]", x, y + 180, 11, "#8fa5a9");
+    g.textAlign = "left"; g.textBaseline = "middle";
+    let cur = x;
+    const put = (s, col, size) => {
+      g.font = "700 " + MONO(size || 15); g.fillStyle = col;
+      g.fillText(s, cur, y + 210); cur += g.measureText(s).width;
+    };
+    put("= ", "#4e6d75");
+    for (let m = 0; m < N; m++) {
+      g.globalAlpha = m <= k ? 1 : .26;
+      put(String(A[i][m]), m === k ? "#ffe0bd" : COL.a);
+      put("×", "#4e6d75");
+      put(String(B[m][j]), m === k ? "#cdf3f8" : COL.b);
+      if (m < N - 1) put(" + ", "#4e6d75");
+      g.globalAlpha = 1;
+    }
+    const v = acc(i, j, c), fin = isDone(i, j, c);
+    cur = x;
+    g.font = "700 " + MONO(15); g.fillStyle = "#4e6d75";
+    g.fillText("= ", cur, y + 242); cur += g.measureText("= ").width;
+    g.font = "700 " + MONO(20); g.fillStyle = fin ? COL.done : "#e7f1f0";
+    g.fillText(v === null ? "0" : String(v), cur, y + 242);
+    cur += g.measureText(v === null ? "0" : String(v)).width;
+    if (!fin) label(g, "  so far", cur, y + 243, 12, "#4e6d75");
+    label(g, fin ? "FINAL" : "STILL COOKING", x, y + 268, 10, fin ? COL.done : "#4e6d75");
+  } else {
+    label(g, "LEGEND", x, y + 180, 11, "#4e6d75");
+    [[COL.a, "A · walks right, used by every cell in its row"],
+     [COL.b, "B · walks down, used by every cell in its column"],
+     [COL.done, "total is finished"]].forEach(([col, txt], m) => {
+      const yy = y + 208 + m*25;
+      rr(g, x, yy - 7, 14, 14, 4); g.fillStyle = col; g.fill();
+      g.font = "500 " + MONO(11.5); g.fillStyle = "#8fa5a9";
+      g.textAlign = "left"; g.textBaseline = "middle";
+      g.fillText(txt, x + 22, yy);
+    });
+    label(g, "HOVER A CELL FOR ITS SUM", x, y + 300, 10, "#3f5d65");
+  }
+}
+
+/* ═══════════════════ the pulse rail — multiplies per beat ═══════════════════
+   Catmull-Rom through the real numbers. Trace and playhead read the same fn. */
+const Pv = i => PULSE[clamp(i, 0, PULSE.length - 1)];
+function pulseAt(bf) {
+  const m = Math.floor(bf - T0), u = bf - T0 - m;
+  const p0 = Pv(m-1), p1 = Pv(m), p2 = Pv(m+1), p3 = Pv(m+2);
+  return Math.max(0, .5*(2*p1 + (-p0+p2)*u + (2*p0-5*p1+4*p2-p3)*u*u + (-p0+3*p1-3*p2+p3)*u*u*u));
+}
+function drawRail(cvx, full, at) {
+  const g = fit(cvx), W = cvx._w, H = cvx._h;
+  const padL = full ? 148 : 3, padR = full ? 54 : 3;
+  const top = full ? 24 : 11, bot = H - (full ? 26 : 13);
+  const X = b => padL + (b - T0)/(T1 - T0)*(W - padL - padR);
+  const Y = v => bot - (v / (N*N))*(bot - top);
+
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = full ? COL.line : "rgba(18,24,26,.18)"; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(X(T0), bot + .5); g.lineTo(X(T1), bot + .5); g.stroke();
+
+  const trace = () => {
+    g.beginPath();
+    for (let b = T0; b <= T1 + 1e-9; b += .02) {
+      const px = X(b), py = Y(pulseAt(b));
+      b === T0 ? g.moveTo(px, py) : g.lineTo(px, py);
+    }
+  };
+  trace(); g.lineTo(X(T1), bot); g.lineTo(X(T0), bot); g.closePath();
+  g.fillStyle = "rgba(226,87,76,.11)"; g.fill();
+
+  trace();
+  g.strokeStyle = COL.pulse; g.lineWidth = full ? 2 : 2.2;
+  g.lineJoin = "round"; g.lineCap = "round";
+  g.shadowColor = "rgba(226,87,76,.5)"; g.shadowBlur = 9;
+  g.stroke(); g.shadowBlur = 0;
+
+  if (full) {
+    for (let b = 0; b <= T1 - 1; b++) {
+      g.strokeStyle = "rgba(36,58,65,.95)";
+      g.beginPath(); g.moveTo(X(b), bot); g.lineTo(X(b), bot + 4); g.stroke();
+      label(g, String(b), X(b), bot + 14, 9, "#4e6d75", "center");
+      label(g, String(PULSE[b - T0]), X(b), Y(PULSE[b - T0]) - 11, 9.5, "rgba(226,87,76,.95)", "center");
+    }
+    label(g, "MULTIPLIES", MG + 2, top + 10, 11, "#8fa5a9");
+    label(g, "PER BEAT", MG + 2, top + 26, 11, "#8fa5a9");
+    label(g, "peak 7 of 9 cells", MG + 2, top + 48, 10, "#4e6d75");
+    label(g, "fill", X(.55), bot - 9, 9, "#4e6d75", "center");
+    label(g, "drain", X(5.45), bot - 9, 9, "#4e6d75", "center");
+    label(g, "beat", X(T1) + 7, bot + 14, 9, "#4e6d75");
+  }
+
+  const px = X(at), py = Y(pulseAt(at));
+  g.strokeStyle = "rgba(226,87,76,.28)"; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(px, top); g.lineTo(px, bot); g.stroke();
+  g.save(); g.shadowColor = COL.pulse; g.shadowBlur = 14;
+  g.fillStyle = "#fff"; g.beginPath(); g.arc(px, py, full ? 4 : 3.4, 0, 7); g.fill();
+  g.restore();
+}
+
+/* ═══════════════════ one cell, looping ═══════════════════ */
+const MA = [2,5,3], MB = [4,1,6];              // totals: 8 → 13 → 31
+const cellCv = document.getElementById("cell");
+let mt = 0;
+function drawCell() {
+  const g = fit(cellCv), W = cellCv._w, H = cellCv._h;
+  const S = 108, cx = W/2, cy = 155, x0 = cx - S/2, y0 = cy - S/2;
+  const LY = y0 + 26, P = 115;                 // lane y, and one beat of travel in px
+  const b = Math.floor(mt), f = mt - b, mp = moveProg(f), tau = b + mp;
+  const flash = Math.max(0, 1 - f/HOLD);
+  const r = ((b % 5) + 5) % 5, working = r <= 2;
+  const sumTo = m => { let s = 0; for (let q = 0; q <= m; q++) s += MA[q]*MB[q]; return s; };
+  const total = r <= 2 ? sumTo(r) : r === 3 ? sumTo(2) : 0;
+
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = COL.line; g.lineWidth = 1; g.setLineDash([2,5]);
+  g.beginPath(); g.moveTo(14, LY); g.lineTo(W - 14, LY); g.stroke();
+  g.beginPath(); g.moveTo(cx, 12); g.lineTo(cx, H - 12); g.stroke();
+  g.setLineDash([]);
+
+  rr(g, x0, y0, S, S, 11);
+  g.fillStyle = COL.cell; g.fill();
+  if (working && flash > 0) { g.save(); g.globalAlpha = flash*.07; g.fillStyle = "#fff"; g.fill(); g.restore(); }
+  g.strokeStyle = working && flash > 0 ? "rgba(255,255,255," + (.12 + .45*flash) + ")" : COL.line;
+  g.lineWidth = 1.2; g.stroke();
+
+  if (working && flash > .02) {
+    g.save(); g.globalAlpha = flash; g.shadowColor = "#fff"; g.shadowBlur = 11;
+    label(g, "×", cx, LY, 12, "rgba(255,255,255,.92)", "center");
+    g.restore();
+  }
+
+  rr(g, x0 + 13, y0 + S - 46, S - 26, 30, 6);
+  g.fillStyle = "rgba(0,0,0,.34)"; g.fill();
+  label(g, "TOTAL", x0 + 19, y0 + S - 37, 8, "#4e6d75");
+  g.save();
+  if (working && flash > .1) { g.shadowColor = "#fff"; g.shadowBlur = 10*flash; }
+  g.font = "700 " + MONO(20); g.fillStyle = "#e7f1f0";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(String(total), cx, y0 + S - 23);
+  g.restore();
+
+  /* a stream of pairs: pair m of each 5-beat cycle lands on the cell at beat 5n+m */
+  const cyc = Math.floor(b / 5);
+  for (let n = -1; n <= 1; n++) for (let m = 0; m < N; m++) {
+    const arrive = 5*(cyc + n) + m, d = arrive - tau;
+    if (Math.abs(d) > 1.65) continue;
+    const al = clamp(1.3 - Math.abs(d)*.8, 0, 1);
+    const nud = -16 * ((arrive === b ? 1 - mp : 0) + (arrive === b + 1 ? mp : 0));
+    const gl = arrive === b ? flash : 0;
+    chip(g, cx - d*P + nud, LY, MA[m], "a", al, gl);
+    chip(g, cx - nud, LY - d*P, MB[m], "b", al, gl);
+  }
+
+  label(g, "a arrives from the left", 14, LY - 26, 10, "rgba(255,157,77,.8)");
+  label(g, "b from above", cx + 20, 20, 10, "rgba(69,200,216,.8)");
+  label(g, "…and both keep going", W - 14, H - 18, 10, "#4e6d75", "right");
+}
+
+/* ═══════════════════ loop ═══════════════════ */
+const $ = id => document.getElementById(id);
+const railCv = $("rail"), heroCv = $("hero");
+let heroClock = T0, last = performance.now();
+
+function frame(now) {
+  const dt = Math.min((now - last)/1000, .05); last = now;
+  if (playing) { t += dt*bps; if (t >= T1) { t = T1; playing = false; sync(); } }
+  if (!reduced) {
+    mt = (mt + dt*.85) % 5;
+    heroClock += dt*.75;
+    if (heroClock > T1 + .5) heroClock = T0 - .5;
+  }
+  drawArray();
+  drawRail(railCv, true, clamp(t, T0, T1));
+  drawRail(heroCv, false, clamp(heroClock, T0, T1));
+  drawCell();
+  requestAnimationFrame(frame);
+}
+
+/* ═══════════════════ controls ═══════════════════ */
+const playBtn = $("play"), phase = $("phase");
+function sync() {
+  playBtn.textContent = playing ? "Pause" : t >= T1 ? "Replay" : "Play";
+  const c = Math.floor(t + 1e-9);
+  phase.textContent = t <= T0 ? "ready · staircase loaded"
+    : c >= T1 ? "done · all nine totals final"
+    : macsOn(c) + " of 9 cells working";
+}
+playBtn.onclick   = () => { if (t >= T1) t = T0; playing = !playing; last = performance.now(); sync(); };
+$("fwd").onclick  = () => { playing = false; t = Math.min(T1, Math.round(t) + 1); sync(); };
+$("back").onclick = () => { playing = false; t = Math.max(T0, Math.round(t) - 1); sync(); };
+$("reset").onclick= () => { playing = false; t = T0; sync(); };
+$("speed").oninput = e => { bps = +e.target.value; };
+
+addEventListener("keydown", e => {
+  if (/input/i.test(e.target.tagName)) return;
+  if (e.code === "Space") { e.preventDefault(); playBtn.click(); }
+  else if (e.code === "ArrowRight") { e.preventDefault(); $("fwd").click(); }
+  else if (e.code === "ArrowLeft")  { e.preventDefault(); $("back").click(); }
+});
+
+function pick(e) {
+  const r = cv.getBoundingClientRect(), s = cv._w / r.width;
+  const x = (e.clientX - r.left)*s, y = (e.clientY - r.top)*s;
+  const j = Math.floor((x - OX)/PITCH), i = Math.floor((y - OY)/PITCH);
+  const inside = i >= 0 && i < N && j >= 0 && j < N &&
+                 (x - OX) % PITCH <= CELL && (y - OY) % PITCH <= CELL;
+  hover = inside ? { i, j } : null;
+  cv.style.cursor = inside ? "pointer" : "default";
+}
+cv.addEventListener("mousemove", pick);
+cv.addEventListener("click", pick);
+cv.addEventListener("mouseleave", () => { hover = null; });
+
+function editors() {
+  [["mxA", A], ["mxB", B]].forEach(([id, M]) => {
+    const host = $(id); host.innerHTML = "";
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.min = 0; inp.max = 9; inp.value = M[i][j];
+      inp.setAttribute("aria-label", (id === "mxA" ? "A" : "B") + " row " + (i+1) + " column " + (j+1));
+      inp.oninput = () => {
+        const v = parseInt(inp.value, 10);
+        if (isNaN(v)) return;
+        M[i][j] = clamp(v, 0, 9); inp.value = M[i][j]; sync();
+      };
+      host.appendChild(inp);
+    }
+  });
+}
+$("rand").onclick = () => {
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    A[i][j] = 1 + Math.floor(Math.random()*9);
+    B[i][j] = Math.floor(Math.random()*7);
+  }
+  editors(); sync();
+};
+
+editors(); sync();
+if (!reduced) playing = true;
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
